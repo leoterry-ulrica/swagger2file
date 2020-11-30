@@ -1,7 +1,4 @@
 
-swagger:
-  # swagger api jsonÊý¾ÝµØÖ·
-  url: http://52.82.78.179:30209/tangram/v3/api-docs
 spring:
   application:
     name: swagger2file
