@@ -97,7 +97,7 @@ public class WordService {
                                 parameter.put("paraType", "requestbody");
                                 parameter.put("required", false);
                                 if (null == schema.get("type")) {
-                                    parameter.put("dataType", "objct");
+                                    parameter.put("dataType", "object");
                                     requestParaPath = schema.getString("$ref");
                                 } else {
                                     parameter.put("dataType", schema.getString("type"));
