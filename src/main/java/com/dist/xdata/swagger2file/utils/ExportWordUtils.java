@@ -2,12 +2,15 @@ package com.dist.xdata.swagger2file.utils;
 
 import cn.afterturn.easypoi.word.WordExportUtil;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFTable;
+import org.apache.poi.xwpf.usermodel.XWPFTableCell;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTc;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 import org.springframework.util.Assert;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,36 +55,37 @@ public class ExportWordUtils {
         file1.delete();
     }
 
-    public static void main(String[] args) throws Exception {
-        List<Map<String, Object>> dataMaps = new ArrayList<>();
+    /**
+     * 得到Cell的CTTcPr,不存在则新建。
+     *
+     * @param cell XWPFTableCell
+     * @return
+     */
+    private static CTTcPr getCellCTTcPr(XWPFTableCell cell) {
+        CTTc cttc = cell.getCTTc();
+        CTTcPr tcPr = cttc.isSetTcPr() ? cttc.getTcPr() : cttc.addNewTcPr();
+        return tcPr;
+    }
 
-        Map<String, Object> parameter;
-        for (int i = 0; i < 5; i++) {
-            Map<String, Object> dataMap = new HashMap<>();
-            dataMaps.add(dataMap);
-            dataMap.put("controllerName", "controller-" + i);
-            dataMap.put("interfaceName", "interface-" + i);
-            dataMap.put("interfaceDesc", "interfacedesc-" + i);
-            dataMap.put("url", "url-" + i);
-            dataMap.put("method", "method-" + i);
-            List<Map<String, Object>> parameters = new ArrayList<>();
-            for (int j = 0; j < 4; j++) {
-                parameter = new HashMap<>();
-                parameter.put("name", "para-name-" + j);
-                parameter.put("dataType", "datatype-" + j);
-                parameter.put("paraType", "paratype-" + j);
-                parameter.put("required", "Y" + j);
-                parameter.put("description", "desc-" + j);
-                parameters.add(parameter);
+    /**
+     * 合并列
+     *
+     * @param table 每个word表
+     * @param row 要合并的列所在行号
+     * @param fromCell 起始单元格号
+     * @param toCell 结束单元格号
+     */
+    public static void mergeCellsHorizontal(XWPFTable table, int row, int fromCell, int toCell) {
+        for (int cellIndex = fromCell; cellIndex <= toCell; cellIndex++) {
+            XWPFTableCell cell = table.getRow(row).getCell(cellIndex);
+            if (null == cell) {
+                continue;
             }
-            dataMap.put("ps", parameters);
-            dataMap.put("responseType", "array");
-            dataMap.put("responseDesc", "xxx123");
+            if (cellIndex == fromCell) {
+                getCellCTTcPr(cell).addNewHMerge().setVal(STMerge.RESTART);
+            } else {
+                getCellCTTcPr(cell).addNewHMerge().setVal(STMerge.CONTINUE);
+            }
         }
-
-        XWPFDocument doc = WordExportUtil.exportWord07("C:\\Users\\75423\\Desktop\\swagger-word-template.docx", dataMaps);
-        String tmpPath = "C:\\Users\\75423\\Desktop\\output.docx";
-        FileOutputStream fos = new FileOutputStream(tmpPath);
-        doc.write(fos);
     }
 }

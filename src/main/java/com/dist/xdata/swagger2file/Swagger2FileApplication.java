@@ -5,11 +5,14 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * @author leoterry
+ */
 @SpringBootApplication
-public class Swagger2fileApplication implements WebMvcConfigurer {
+public class Swagger2FileApplication implements WebMvcConfigurer {
 
     public static void main(String[] args) {
-        SpringApplication.run(Swagger2fileApplication.class, args);
+        SpringApplication.run(Swagger2FileApplication.class, args);
     }
 
     @Override

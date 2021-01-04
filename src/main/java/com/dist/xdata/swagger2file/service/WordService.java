@@ -5,14 +5,18 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.dist.xdata.swagger2file.model.*;
+import com.dist.xdata.swagger2file.utils.ExportWordUtils;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,6 +25,20 @@ import java.util.Map;
 
 @Service
 public class WordService {
+
+    /**
+     * 模板里面的基本信息行数（根据自己的模板进行修改）
+     */
+    private static int TEMPLATE_BASIC_INFO_ROW_COUNT = 6;
+    /**
+     * 模板里面合并起始列索引号（根据自己的模板进行修改），如果是-1，则不进行合并。
+     */
+    private static int TEMPLATE_MERGE_FORM_COLUMN = 2;
+    /**
+     * 模板里面合并终止列索引号（根据自己的模板进行修改），如果是-1，则不进行合并。
+     */
+    private static int TEMPLATE_MERGE_TO_COLUMN = 4;
+
     @Autowired
     private RestTemplate restTemplate;
 
@@ -41,6 +59,8 @@ public class WordService {
         if (0 == interfaceCount) {
             return "";
         }
+        // 请求参数行数，默认两行
+        int REQUEST_PARAMETER_ROW_COUNT = 2;
         for(Map.Entry<String, Map<String, MethodDTO>> pathEntry : swaggerAPIDTO.getPaths().entrySet()) {
             for (Map.Entry<String, MethodDTO> methodEntry : pathEntry.getValue().entrySet()) {
                 MethodDTO method = methodEntry.getValue();
@@ -53,6 +73,7 @@ public class WordService {
                 dataMap.put("method", methodEntry.getKey());
                 List<Map<String, Object>> parameters = new ArrayList<>();
                 dataMap.put("ps", parameters);
+                // 常规请求参数处理
                 if (!CollectionUtils.isEmpty(methodEntry.getValue().getParameters())) {
                    for (ParameterDTO parameterDTO : methodEntry.getValue().getParameters()) {
                        parameter = new HashMap<>();
@@ -64,7 +85,7 @@ public class WordService {
                        parameter.put("description", parameterDTO.getDescription());
                    }
                 }
-                // 请求参数处理
+                // requestbody参数处理
                 System.out.println("接口方法：" + JSON.toJSONString(methodEntry.getValue()));
                 if (!CollectionUtils.isEmpty(methodEntry.getValue().getRequestBody())) {
                     Map<String, JSONObject> requestBody = methodEntry.getValue().getRequestBody();
@@ -181,10 +202,50 @@ public class WordService {
             }
         }
         String templatePath = this.getClass().getClassLoader().getResource("swagger-word-template.docx").getPath();
+        // 注意：此时的doc只有获取到第一个table数据
+        // 所以在方法mergeColumns中重新读取本地文件来获取table数据
+        // 还有个方案就是重写easypoi的方法
         XWPFDocument doc = WordExportUtil.exportWord07(templatePath, dataMaps);
         String outputPath = Files.createTempFile("swagger2doc", ".docx").toAbsolutePath().toString();
         try(FileOutputStream fos = new FileOutputStream(outputPath)) {
             doc.write(fos);
+        }
+        // 合并列
+        return this.mergeColumns(dataMaps, outputPath);
+    }
+
+    /**
+     * 合并模板中响应参数多出的列
+     *
+     * @param dataMaps
+     * @param documentPath
+     * @throws IOException
+     */
+    private String mergeColumns(List<Map<String, Object>> dataMaps, String documentPath) throws IOException {
+        // 重新读取本地文件，才能获取到所有表格数据
+        try(FileInputStream inputStream = new FileInputStream(documentPath)) {
+            XWPFDocument document = new XWPFDocument(inputStream);
+            // 表格迭代器
+            List<XWPFTable> tables = document.getTables();
+            int count = tables.size();
+            for (int index=0; index< count; index++) {
+                XWPFTable table = tables.get(index);
+                List<Map<String, Object>> requestParameters = (List<Map<String, Object>>) dataMaps.get(index).get("ps");
+                int startRowIndex = TEMPLATE_BASIC_INFO_ROW_COUNT + (CollectionUtils.isEmpty(requestParameters)? 0 : requestParameters.size()) + 2 + 2;
+                List<Map<String, Object>> responseParameters = (List<Map<String, Object>>) dataMaps.get(index).get("resp");
+                if (CollectionUtils.isEmpty(responseParameters)) {
+                    continue;
+                }
+                int endRowIndex = startRowIndex + responseParameters.size();
+                for (int rowIndex = startRowIndex;rowIndex < endRowIndex; rowIndex++) {
+                    ExportWordUtils.mergeCellsHorizontal(table, rowIndex, TEMPLATE_MERGE_FORM_COLUMN, TEMPLATE_MERGE_TO_COLUMN);
+                }
+            }
+            // 重新生成文件
+            String outputPath = Files.createTempFile("swagger2doc", ".docx").toAbsolutePath().toString();
+            try(FileOutputStream fos = new FileOutputStream(outputPath)) {
+                document.write(fos);
+            }
             return outputPath;
         }
     }
